@@ -1,0 +1,14 @@
+extern _GetStdHandle@4
+extern _lstrlenA@4
+extern _WriteConsoleA@20
+extern _ExitProcess@4
+
+function main begin
+	var handle : 4 end
+	var msg1 : 4 end msg1 "Hello from blueberry compiler!\n" !
+	var msg2 : 4 end msg2 "I love programming!\n" !
+	handle -11 _GetStdHandle@4 !
+	0 NULL msg1 * _lstrlenA@4 msg1 * handle * _WriteConsoleA@20
+	0 NULL msg2 * _lstrlenA@4 msg2 * handle * _WriteConsoleA@20
+	0 _ExitProcess@4
+end
