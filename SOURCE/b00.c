@@ -1,3 +1,4 @@
+#include <io.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,8 +15,10 @@ enum TOKEN_TYPE {
 	
 	TOKEN_TYPE_EXTERN,		// extern
 	TOKEN_TYPE_TYPEDEF,		// typedef
+	TOKEN_TYPE_RETURN,		// return
 	TOKEN_TYPE_FUNCTION,	// function
 	TOKEN_TYPE_BEGIN,		// begin
+	TOKEN_TYPE_SET,			// set
 	TOKEN_TYPE_END,			// end
 	
 	TOKEN_TYPE_VAR,			// var
@@ -33,7 +36,7 @@ enum TOKEN_TYPE {
 	
 	TOKEN_TYPE_ADDR_OF,		// &
 	TOKEN_TYPE_INST_OF,		// #
-	TOKEN_TYPE_PEEK,		// *
+	TOKEN_TYPE_PEEK,		// @
 	TOKEN_TYPE_POKE,		// !
 	TOKEN_TYPE_COLON,		// :
 	
@@ -49,6 +52,11 @@ enum TOKEN_TYPE {
 struct Keyword {
 	char symb[16];
 	int type;
+};
+
+struct Const {
+	char symb[16];
+	int val;
 };
 
 int ch(int);
@@ -80,21 +88,23 @@ char * types[17] = {
 };
 
 struct Keyword keywrds[26];
+struct Const constt[32];
 char vars[32][16];
 char symbuf[16];
 int varl = 0;
+int constl = 0;
 int keywrdl = 0;
 int namesiz = 16;
 int intval = 0;
 int sidx = 0;
-int eof = 0;
+int eoff = 0;
 int line = 1;
 int infunc = 0;
 int invars = 0;
 
 int main(int argc, char ** argv)
 {
-	if (argc < 2 || argc > 2) {
+	if (argc < 3 || argc > 3) {
 		printf("Arg Count : %d\n", argc);
 		exit(1);
 	}
@@ -102,8 +112,10 @@ int main(int argc, char ** argv)
 
 	key("extern", TOKEN_TYPE_EXTERN);
 	key("typedef", TOKEN_TYPE_TYPEDEF);
+	key("return", TOKEN_TYPE_RETURN);
 	key("function", TOKEN_TYPE_FUNCTION);
 	key("begin", TOKEN_TYPE_BEGIN);
+	key("set", TOKEN_TYPE_SET);
 	key("end", TOKEN_TYPE_END);
 	key("var", TOKEN_TYPE_VAR);
 	
@@ -114,10 +126,13 @@ int main(int argc, char ** argv)
 
 	printf(".globl _main\n");
 	printf("jmp _main\n");
-	while (!eof) {
+	
+	while (!eoff) {
 		declare();
 	}
-	
+
+	printf("as %s.s -o %s.obj\n", argv[2], argv[2]);
+	printf("ld -o %s.exe %s.obj  -L/mingw/lib -luser32 -lkernel32 -lmsvcrt\n", argv[2], argv[2]);
 	return 0;
 }
 
@@ -145,6 +160,36 @@ void declare(void)
 			exit(1);
 		}
 	} else
+	if (o == TOKEN_TYPE_PLUS) {
+		if ((o = symbol(1)) != TOKEN_TYPE_INTEGER) {
+			printf("%d: Numeric Operation Error\n", line);
+			exit(1);
+		}
+		printf(".text; popl %%eax\n");
+		printf(".text; movl $%d, %%ebx\n", intval);
+		printf(".text; addl %%ebx, %%eax\n");
+		printf(".text; pushl %%eax\n");
+	} else
+	if (o == TOKEN_TYPE_MINUS) {
+		if ((o = symbol(1)) != TOKEN_TYPE_INTEGER) {
+			printf("%d: Numeric Operation Error\n", line);
+			exit(1);
+		}
+		printf(".text; popl %%eax\n");
+		printf(".text; movl $%d, %%ebx\n", intval);
+		printf(".text; subl %%ebx, %%eax\n");
+		printf(".text; pushl %%eax\n");
+	} else
+	if (o == TOKEN_TYPE_MULTIPLY) {
+		if ((o = symbol(1)) != TOKEN_TYPE_INTEGER) {
+			printf("%d: Numeric Operation Error\n", line);
+			exit(1);
+		}
+		printf(".text; popl %%eax\n");
+		printf(".text; movl $%d, %%ebx\n", intval);
+		printf(".text; imull %%ebx, %%eax\n");
+		printf(".text; pushl %%eax\n");
+	} else
 	if (o == TOKEN_TYPE_PEEK) {
 		printf(".text; popl %%edx\n"); /* get the address */
 		printf(".text; pushl (%%edx)\n");
@@ -154,6 +199,9 @@ void declare(void)
 		printf(".text; popl %%edx\n"); /* get the address */
 		printf(".text; mov %%ebx, (%%edx)\n");
 	} else
+	if (o == TOKEN_TYPE_RETURN) {
+		printf(".text; popl %%eax\n");
+	} else
 	if (o == TOKEN_TYPE_EXTERN) { /* Extern function */
 		if((o = symbol(1)) == TOKEN_TYPE_NAME) {
 			printf(".extern %s\n", symbuf);
@@ -161,6 +209,29 @@ void declare(void)
 			printf("%d: Extern Function Definition Error\n", line);
 			exit(1);
 		}
+	} else
+	if (o == TOKEN_TYPE_SET) { /* Constants */
+		if ((o = symbol(1)) != TOKEN_TYPE_NAME) {
+			printf("%d: Constant Definition Error\n", line);
+			exit(1);
+		}
+		strcpy(constt[constl].symb, symbuf);
+		printf("%s = ", symbuf);
+		if ((o = symbol(1)) != TOKEN_TYPE_COLON) {
+			printf("%d: Constant Definition Error\n", line);
+			exit(1);
+		}
+		if ((o = symbol(1)) != TOKEN_TYPE_INTEGER) {
+			printf("%d: Constant Definition Error\n", line);
+			exit(1);
+		}
+		constt[constl].val = intval;
+		printf("%d\n", intval);
+		if ((o = symbol(1)) != TOKEN_TYPE_END) {
+			printf("%d: Constant Definition Error\n", line);
+			exit(1);
+		}
+		constl++;
 	} else
 	if (o == TOKEN_TYPE_VAR) { /* Variables */
 		if ((o = symbol(1)) == TOKEN_TYPE_NAME) {
@@ -173,14 +244,20 @@ void declare(void)
 			strcpy(vars[varl], symbuf);
 			printf(".data; %s:", symbuf);
 			if ((o = symbol(1)) != TOKEN_TYPE_COLON) {
-				printf("\n%d\n", intval);
 				printf("\n%d: Variable Definion Error\n", line);
 				exit(1);
 			}
-			if ((o = symbol(1)) == TOKEN_TYPE_INTEGER) {
-				invars = 1;
+			o = symbol(1);
+			if (o == TOKEN_TYPE_INTEGER) {
 				printf("%s ", types[intval]);
-				varl++;
+			} else
+			if (o == TOKEN_TYPE_NAME) {
+				for (int i = 0; i < constl; ++i) {
+					if (!strcmp(constt[i].symb, symbuf)) {
+						printf("%s ", types[constt[i].val]);
+						break;
+					}
+				}
 			} else {
 				printf("%d: Type should be an integer\n", line);
 				exit(1);
@@ -190,6 +267,7 @@ void declare(void)
 				printf("%d: Variable Definion Error\n", line);
 				exit(1);
 			}
+			varl++;
 		} else {
 			printf("%d: Variable Definion Error\n", line);
 			exit(1);
@@ -225,7 +303,7 @@ int symbol(int t)
 		c = getchar();
 	}
 	if (c == (-1)) { /* check for eof */
-		eof++;
+		eoff++;
 		return TOKEN_TYPE_EOF;
 	} else
 	if (isalpha(c) || c == '_') { /* check for name */
@@ -289,13 +367,19 @@ int symbol(int t)
 		}
 		return subseq('-', TOKEN_TYPE_MINUS, TOKEN_TYPE_DECREMENT);
 	} else
+	if (c == '*') { /* check for * */
+		return TOKEN_TYPE_MULTIPLY;
+	} else
+	if (c == '/') { /* check for / */
+		return TOKEN_TYPE_DIVIDE;
+	} else
 	if (c == ':') { /* check for : */
 		return TOKEN_TYPE_COLON;
 	} else
 	if (c == '!') { /* check for poke */
 		return TOKEN_TYPE_POKE;
 	} else
-	if (c == '*') { /* check for peek */
+	if (c == '@') { /* check for peek */
 		return TOKEN_TYPE_PEEK;
 	} else
 	if (c == '/') { /* check for comment */
