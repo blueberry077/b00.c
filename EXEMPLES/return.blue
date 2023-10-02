@@ -1,0 +1,11 @@
+extern _printf
+extern _exit
+
+function foo begin
+	2 * 4 return
+end
+
+function main begin
+	_foo "foo() = %d\n" _printf
+	0 _exit
+end

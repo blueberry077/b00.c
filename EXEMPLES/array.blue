@@ -1,0 +1,4 @@
+function main begin
+	var x : 1 end
+	var arr : 1 [ 32 ] end
+end
