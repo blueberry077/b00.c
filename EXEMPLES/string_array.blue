@@ -1,0 +1,7 @@
+extern _printf
+extern _exit
+
+function main begin
+	var str : 4 end str "ABCD\n" !
+	str @ + 1 _printf 0 _exit
+end
