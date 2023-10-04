@@ -1,4 +1,17 @@
+extern _printf
+extern _exit
+
 function main begin
-	var x : 1 end
-	var arr : 1 [ 32 ] end
+	var x : 4 end
+	var arr : 4 [ 4 ] end
+	arr +  0 123 !
+	arr	+  4 456 !
+	arr	+  8 789 !
+	arr	+ 12 012 !
+	
+	arr +  0 @ "arr[0]=%d\n" _printf
+	arr +  4 @ "arr[0]=%d\n" _printf
+	arr +  8 @ "arr[0]=%d\n" _printf
+	arr + 12 @ "arr[0]=%d\n" _printf
+	0 _exit
 end
