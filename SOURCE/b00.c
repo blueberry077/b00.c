@@ -21,6 +21,10 @@ enum TOKEN_TYPE {
 	TOKEN_TYPE_SET,			// set
 	TOKEN_TYPE_END,			// end
 	
+	TOKEN_TYPE_IF,			// if
+	TOKEN_TYPE_THEN,		// then
+	TOKEN_TYPE_ELSE,		// else
+	
 	TOKEN_TYPE_VAR,			// var
 	
 	TOKEN_TYPE_PLUS,		// +
@@ -39,6 +43,10 @@ enum TOKEN_TYPE {
 	TOKEN_TYPE_PEEK,		// @
 	TOKEN_TYPE_POKE,		// !
 	TOKEN_TYPE_COLON,		// :
+	
+	TOKEN_TYPE_EQUAL,		// =
+	TOKEN_TYPE_LESS,		// <
+	TOKEN_TYPE_GREATER,		// >
 	
 	TOKEN_TYPE_INCREMENT,	// ++
 	TOKEN_TYPE_DECREMENT,	// --
@@ -98,11 +106,13 @@ int constl = 0;
 int keywrdl = 0;
 int namesiz = 16;
 int intval = 0;
+int op = 0;
 int sidx = 0;
 int eoff = 0;
 int line = 1;
 int infunc = 0;
 int invars = 0;
+int in_cond = 0;
 
 int main(int argc, char ** argv)
 {
@@ -121,20 +131,28 @@ int main(int argc, char ** argv)
 	key("end", TOKEN_TYPE_END);
 	key("var", TOKEN_TYPE_VAR);
 	
+	key("if", TOKEN_TYPE_IF);
+	key("then", TOKEN_TYPE_THEN);
+	key("else", TOKEN_TYPE_ELSE);
+	
 	key("and", TOKEN_TYPE_AND);
 	key("not", TOKEN_TYPE_NOT);
 	key("or", TOKEN_TYPE_OR);
 	key("xor", TOKEN_TYPE_XOR);
 
+	char outpfile[100];
+	sprintf(outpfile, "%s.s", argv[2]);
+	freopen(outpfile, "w", stdout);
+	
 	printf(".globl _main\n");
 	printf("jmp _main\n");
 	
 	while (!eoff) {
 		declare();
 	}
-
-	printf("as %s.s -o %s.obj\n", argv[2], argv[2]);
-	printf("ld -o %s.exe %s.obj  -L/mingw/lib -luser32 -lkernel32 -lmsvcrt\n", argv[2], argv[2]);
+	
+	printf("// as %s.s -o %s.obj\n", argv[2], argv[2]);
+	printf("// ld -o %s.exe %s.obj  -L/mingw/lib -luser32 -lkernel32 -lmsvcrt\n", argv[2], argv[2]);
 	return 0;
 }
 
@@ -159,6 +177,31 @@ void declare(void)
 			function(symbuf);
 		} else {
 			printf("%d: Function Definion Error\n", line);
+			exit(1);
+		}
+	} else
+	if (o == TOKEN_TYPE_IF) {
+		in_cond++;
+	} else
+	if (o == TOKEN_TYPE_GREATER) {
+		op = '>';
+	} else
+	if (o == TOKEN_TYPE_EQUAL) {
+		op = '=';
+	} else
+	if (o == TOKEN_TYPE_LESS) {
+		op = '<';
+	} else
+	if (o == TOKEN_TYPE_THEN) {
+		if (in_cond) {
+			printf(".text; popl %%ebx\n");
+			printf(".text; popl %%eax\n");
+			printf(".text; cmp %%ebx, %%eax\n");
+			if (op == '<') printf(".text; jg .end\n");
+			if (op == '=') printf(".text; jne .end\n");
+			if (op == '>') printf(".text; jl .end\n");
+		} else {
+			printf("%d: Not Started If-Condition\n", line);
 			exit(1);
 		}
 	} else
@@ -292,6 +335,10 @@ void declare(void)
 		}
 	} else
 	if (o == TOKEN_TYPE_END) {
+		if (in_cond > 0) {
+			in_cond--;
+			printf(".text; .end:");
+		} else
 		if (infunc) {
 			infunc = 0;
 			printf(".text; ret\n");
@@ -367,6 +414,9 @@ int symbol(int t)
 		getstr();
 		return TOKEN_TYPE_STRING;
 	} else
+	if (c == '>') { /* check for greater */
+		return TOKEN_TYPE_GREATER;
+	}
 	if (c == '+') { /* check for + */
 		return subseq('+', TOKEN_TYPE_PLUS, TOKEN_TYPE_INCREMENT);
 	} else
