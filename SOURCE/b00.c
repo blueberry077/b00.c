@@ -44,9 +44,9 @@ enum TOKEN_TYPE {
 	TOKEN_TYPE_POKE,		// !
 	TOKEN_TYPE_COLON,		// :
 	
-	TOKEN_TYPE_EQUAL,		// =
-	TOKEN_TYPE_LESS,		// <
-	TOKEN_TYPE_GREATER,		// >
+	TOKEN_TYPE_EQUAL,		// equal
+	TOKEN_TYPE_LESS,		// less
+	TOKEN_TYPE_GREATER,		// greater
 	
 	TOKEN_TYPE_INCREMENT,	// ++
 	TOKEN_TYPE_DECREMENT,	// --
@@ -113,6 +113,8 @@ int line = 1;
 int infunc = 0;
 int invars = 0;
 int in_cond = 0;
+int dx_cond = 0;
+int ndx_cond = 0;
 
 int main(int argc, char ** argv)
 {
@@ -134,6 +136,10 @@ int main(int argc, char ** argv)
 	key("if", TOKEN_TYPE_IF);
 	key("then", TOKEN_TYPE_THEN);
 	key("else", TOKEN_TYPE_ELSE);
+	
+	key("less", TOKEN_TYPE_LESS);
+	key("equal", TOKEN_TYPE_EQUAL);
+	key("greater", TOKEN_TYPE_GREATER);
 	
 	key("and", TOKEN_TYPE_AND);
 	key("not", TOKEN_TYPE_NOT);
@@ -180,8 +186,9 @@ void declare(void)
 			exit(1);
 		}
 	} else
-	if (o == TOKEN_TYPE_IF) {
+	if (o == TOKEN_TYPE_IF) { /* If conditions */
 		in_cond++;
+		dx_cond++;
 	} else
 	if (o == TOKEN_TYPE_GREATER) {
 		op = '>';
@@ -192,14 +199,17 @@ void declare(void)
 	if (o == TOKEN_TYPE_LESS) {
 		op = '<';
 	} else
-	if (o == TOKEN_TYPE_THEN) {
-		if (in_cond) {
+	if (o == TOKEN_TYPE_THEN) { /* If conditions */
+		if (dx_cond) {
 			printf(".text; popl %%ebx\n");
 			printf(".text; popl %%eax\n");
 			printf(".text; cmp %%ebx, %%eax\n");
-			if (op == '<') printf(".text; jg .end\n");
-			if (op == '=') printf(".text; jne .end\n");
-			if (op == '>') printf(".text; jl .end\n");
+			if (op == '>') printf(".text; jg .then%d\n", dx_cond);
+			if (op == '=') printf(".text; je .then%d\n", dx_cond);
+			if (op == '<') printf(".text; jl .then%d\n", dx_cond);
+			printf(".text; jmp .end%d\n", dx_cond);
+			printf(".text; .then%d:\n", dx_cond);
+			ndx_cond = dx_cond;
 		} else {
 			printf("%d: Not Started If-Condition\n", line);
 			exit(1);
@@ -335,9 +345,10 @@ void declare(void)
 		}
 	} else
 	if (o == TOKEN_TYPE_END) {
-		if (in_cond > 0) {
+		if (in_cond) {
+			printf(".text; .end%d:\n", ndx_cond);
 			in_cond--;
-			printf(".text; .end:");
+			ndx_cond--;
 		} else
 		if (infunc) {
 			infunc = 0;
@@ -414,9 +425,6 @@ int symbol(int t)
 		getstr();
 		return TOKEN_TYPE_STRING;
 	} else
-	if (c == '>') { /* check for greater */
-		return TOKEN_TYPE_GREATER;
-	}
 	if (c == '+') { /* check for + */
 		return subseq('+', TOKEN_TYPE_PLUS, TOKEN_TYPE_INCREMENT);
 	} else

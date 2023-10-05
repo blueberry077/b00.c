@@ -2,12 +2,16 @@ extern _printf
 extern _exit
 
 function main begin
-	var x : 4 end x 58 !
-	var y : 4 end y 54 !
-	if x @ > y @ + 9 then
-		"x is greater than y\n" _printf
-		0 _exit
+	var x : 4 end x 2 !
+	var y : 4 end y 6 !
+	if x @ equal 2 then
+		if y @ equal 4 then
+			"all the variables are initialized properly\n" _printf
+			0 _exit
+		end
+		"y @ is not equal to 4\n" _printf
+		1 _exit
 	end
-	"x is not greater than y\n" _printf
+	"x @ is not equal 2\n" _printf
 	1 _exit
 end
