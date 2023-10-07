@@ -24,6 +24,8 @@ enum TOKEN_TYPE {
 	TOKEN_TYPE_IF,			// if
 	TOKEN_TYPE_THEN,		// then
 	TOKEN_TYPE_ELSE,		// else
+	TOKEN_TYPE_WHILE,		// while
+	TOKEN_TYPE_DO,			// do
 	
 	TOKEN_TYPE_VAR,			// var
 	
@@ -113,6 +115,7 @@ int line = 1;
 int infunc = 0;
 int invars = 0;
 int in_cond = 0;
+int in_loop = 0;
 int dx_cond = 0;
 int ndx_cond = 0;
 
@@ -136,6 +139,9 @@ int main(int argc, char ** argv)
 	key("if", TOKEN_TYPE_IF);
 	key("then", TOKEN_TYPE_THEN);
 	key("else", TOKEN_TYPE_ELSE);
+	
+	key("while", TOKEN_TYPE_WHILE);
+	key("do", TOKEN_TYPE_DO);
 	
 	key("less", TOKEN_TYPE_LESS);
 	key("equal", TOKEN_TYPE_EQUAL);
@@ -190,6 +196,11 @@ void declare(void)
 		in_cond++;
 		dx_cond++;
 	} else
+	if (o == TOKEN_TYPE_WHILE) { /* While loop */
+		in_loop++;
+		dx_cond++;
+		printf(".text; .while%d:\n", dx_cond);
+	} else
 	if (o == TOKEN_TYPE_GREATER) {
 		op = '>';
 	} else
@@ -203,7 +214,7 @@ void declare(void)
 		if (dx_cond) {
 			printf(".text; popl %%ebx\n");
 			printf(".text; popl %%eax\n");
-			printf(".text; cmp %%ebx, %%eax\n");
+			printf(".text; cmp %%eax, %%ebx\n");
 			if (op == '>') printf(".text; jg .then%d\n", dx_cond);
 			if (op == '=') printf(".text; je .then%d\n", dx_cond);
 			if (op == '<') printf(".text; jl .then%d\n", dx_cond);
@@ -214,6 +225,15 @@ void declare(void)
 			printf("%d: Not Started If-Condition\n", line);
 			exit(1);
 		}
+	} else
+	if (o == TOKEN_TYPE_DO) { /* While loop */
+		printf(".text; popl %%ebx\n");
+			printf(".text; popl %%eax\n");
+			printf(".text; cmp %%ebx, %%eax\n");
+			if (op == '>') printf(".text; jl .end%d\n", dx_cond);
+			if (op == '=') printf(".text; jne .end%d\n", dx_cond);
+			if (op == '<') printf(".text; jg .end%d\n", dx_cond);
+		ndx_cond = dx_cond;
 	} else
 	if (o == TOKEN_TYPE_PLUS) {
 		if ((o = symbol(1)) != TOKEN_TYPE_INTEGER) {
@@ -345,6 +365,16 @@ void declare(void)
 		}
 	} else
 	if (o == TOKEN_TYPE_END) {
+		if (in_loop) {
+			printf(".text; popl %%ebx\n");
+			printf(".text; popl %%eax\n");
+			printf(".text; cmp %%eax, %%ebx\n");
+			if (op == '>') printf(".text; jg .while%d\n", dx_cond);
+			if (op == '=') printf(".text; je .while%d\n", dx_cond);
+			if (op == '<') printf(".text; jl .while%d\n", dx_cond);
+			printf(".text; .end%d:\n", ndx_cond);
+			in_loop--;
+		} else
 		if (in_cond) {
 			printf(".text; .end%d:\n", ndx_cond);
 			in_cond--;
