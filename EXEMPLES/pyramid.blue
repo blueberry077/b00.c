@@ -1,0 +1,22 @@
+extern _printf
+extern _scanf
+extern _exit
+
+function main begin
+	var i : 4 end
+	var j : 4 end
+	var r : 4 end
+	"Enter the number of rows: " _printf
+	r "%d" _scanf
+	i 1 !
+	while i @ less r @ do
+		j 1 !
+		while j @ less i @ do
+			j @ "%d " _printf
+			j j @ 1 + !
+		end
+		"\n" _printf
+		i i @ 1 + !
+	end
+	0 _exit
+end

@@ -1,0 +1,10 @@
+extern _printf
+extern _scanf
+extern _exit
+
+function main begin
+	var name : 1 [ 32 ] end
+	"What your name? " _printf name "%s" _scanf
+	name "Hello %s! Have a nice day.\n" _printf
+	0 _exit
+end

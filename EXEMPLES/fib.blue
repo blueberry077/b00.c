@@ -1,0 +1,17 @@
+extern _printf
+extern _exit
+
+function main begin
+	var a : 4 end a 1 !
+	var b : 4 end b 0 !
+	var c : 4 end b 0 !
+	"The fibonacci sequence: " _printf
+	while b @ less 100 do
+		b @ "%d, " _printf
+		c a @ b @ + !
+		a b @ !
+		b c @ !
+	end
+	b @ "%d\n" _printf
+	0 _exit
+end
