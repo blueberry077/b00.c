@@ -236,12 +236,8 @@ void declare(void)
 		ndx_cond = dx_cond;
 	} else
 	if (o == TOKEN_TYPE_PLUS) {
-		if ((o = symbol(1)) != TOKEN_TYPE_INTEGER) {
-			printf("%d: Numeric Operation Error\n", line);
-			exit(1);
-		}
+		printf(".text; popl %%ebx\n");
 		printf(".text; popl %%eax\n");
-		printf(".text; movl $%d, %%ebx\n", intval);
 		printf(".text; addl %%ebx, %%eax\n");
 		printf(".text; pushl %%eax\n");
 	} else
@@ -369,11 +365,12 @@ void declare(void)
 			printf(".text; popl %%ebx\n");
 			printf(".text; popl %%eax\n");
 			printf(".text; cmp %%eax, %%ebx\n");
-			if (op == '>') printf(".text; jg .while%d\n", dx_cond);
-			if (op == '=') printf(".text; je .while%d\n", dx_cond);
-			if (op == '<') printf(".text; jl .while%d\n", dx_cond);
+			if (op == '>') printf(".text; jg .while%d\n", ndx_cond);
+			if (op == '=') printf(".text; je .while%d\n", ndx_cond);
+			if (op == '<') printf(".text; jl .while%d\n", ndx_cond);
 			printf(".text; .end%d:\n", ndx_cond);
 			in_loop--;
+			ndx_cond--;
 		} else
 		if (in_cond) {
 			printf(".text; .end%d:\n", ndx_cond);
