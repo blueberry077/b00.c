@@ -40,6 +40,9 @@ enum TOKEN_TYPE {
 	TOKEN_TYPE_OR,			// or
 	TOKEN_TYPE_XOR,			// xor
 	
+	TOKEN_TYPE_SHL,			// shl
+	TOKEN_TYPE_SHR,			// shr
+	
 	TOKEN_TYPE_ADDR_OF,		// &
 	TOKEN_TYPE_INST_OF,		// #
 	TOKEN_TYPE_PEEK,		// @
@@ -114,10 +117,12 @@ int eoff = 0;
 int line = 1;
 int infunc = 0;
 int invars = 0;
-int in_cond = 0;
-int in_loop = 0;
-int dx_cond = 0;
-int ndx_cond = 0;
+int in_cond = 1;
+int in_loop = 1;
+int wdx_cond = 0;
+int nwdx_cond = 0;
+int ifdx_cond = 0;
+int nifdx_cond = 0;
 
 int main(int argc, char ** argv)
 {
@@ -151,6 +156,9 @@ int main(int argc, char ** argv)
 	key("not", TOKEN_TYPE_NOT);
 	key("or", TOKEN_TYPE_OR);
 	key("xor", TOKEN_TYPE_XOR);
+	
+	key("shl", TOKEN_TYPE_SHL);
+	key("shr", TOKEN_TYPE_SHR);
 
 	char outpfile[100];
 	sprintf(outpfile, "%s.s", argv[2]);
@@ -193,13 +201,15 @@ void declare(void)
 		}
 	} else
 	if (o == TOKEN_TYPE_IF) { /* If conditions */
-		in_cond++;
-		dx_cond++;
+		in_cond+=in_loop;
+		ifdx_cond++;
+		nifdx_cond = ifdx_cond;
 	} else
 	if (o == TOKEN_TYPE_WHILE) { /* While loop */
-		in_loop++;
-		dx_cond++;
-		printf(".text; .while%d:\n", dx_cond);
+		in_loop+=in_cond;
+		wdx_cond++;
+		printf(".text; .WHILE%d:\n", wdx_cond);
+		nwdx_cond = wdx_cond;
 	} else
 	if (o == TOKEN_TYPE_GREATER) {
 		op = '>';
@@ -211,16 +221,15 @@ void declare(void)
 		op = '<';
 	} else
 	if (o == TOKEN_TYPE_THEN) { /* If conditions */
-		if (dx_cond) {
+		if (ifdx_cond) {
 			printf(".text; popl %%ebx\n");
 			printf(".text; popl %%eax\n");
 			printf(".text; cmp %%eax, %%ebx\n");
-			if (op == '>') printf(".text; jg .then%d\n", dx_cond);
-			if (op == '=') printf(".text; je .then%d\n", dx_cond);
-			if (op == '<') printf(".text; jl .then%d\n", dx_cond);
-			printf(".text; jmp .end%d\n", dx_cond);
-			printf(".text; .then%d:\n", dx_cond);
-			ndx_cond = dx_cond;
+			if (op == '>') printf(".text; jg .IFTHEN%d\n", ifdx_cond);
+			if (op == '=') printf(".text; je .IFTHEN%d\n", ifdx_cond);
+			if (op == '<') printf(".text; jl .IFTHEN%d\n", ifdx_cond);
+			printf(".text; jmp .IFEND%d\n", ifdx_cond);
+			printf(".text; .IFTHEN%d:\n", ifdx_cond);
 		} else {
 			printf("%d: Not Started If-Condition\n", line);
 			exit(1);
@@ -228,37 +237,52 @@ void declare(void)
 	} else
 	if (o == TOKEN_TYPE_DO) { /* While loop */
 		printf(".text; popl %%ebx\n");
-			printf(".text; popl %%eax\n");
-			printf(".text; cmp %%ebx, %%eax\n");
-			if (op == '>') printf(".text; jl .end%d\n", dx_cond);
-			if (op == '=') printf(".text; jne .end%d\n", dx_cond);
-			if (op == '<') printf(".text; jg .end%d\n", dx_cond);
-		ndx_cond = dx_cond;
+		printf(".text; popl %%eax\n");
+		printf(".text; cmp %%ebx, %%eax\n");
+		if (op == '>') printf(".text; jl .WHILEEND%d\n", wdx_cond);
+		if (op == '=') printf(".text; jne .WHILEEND%d\n", wdx_cond);
+		if (op == '<') printf(".text; jg .WHILEEND%d\n", wdx_cond);
 	} else
-	if (o == TOKEN_TYPE_PLUS) {
+	if (o == TOKEN_TYPE_PLUS) { /* Arithmetic */
 		printf(".text; popl %%ebx\n");
 		printf(".text; popl %%eax\n");
 		printf(".text; addl %%ebx, %%eax\n");
 		printf(".text; pushl %%eax\n");
 	} else
 	if (o == TOKEN_TYPE_MINUS) {
-		if ((o = symbol(1)) != TOKEN_TYPE_INTEGER) {
-			printf("%d: Numeric Operation Error\n", line);
-			exit(1);
-		}
+		printf(".text; popl %%ebx\n");
 		printf(".text; popl %%eax\n");
-		printf(".text; movl $%d, %%ebx\n", intval);
 		printf(".text; subl %%ebx, %%eax\n");
 		printf(".text; pushl %%eax\n");
 	} else
 	if (o == TOKEN_TYPE_MULTIPLY) {
-		if ((o = symbol(1)) != TOKEN_TYPE_INTEGER) {
-			printf("%d: Numeric Operation Error\n", line);
-			exit(1);
-		}
+		printf(".text; popl %%ebx\n");
 		printf(".text; popl %%eax\n");
-		printf(".text; movl $%d, %%ebx\n", intval);
 		printf(".text; imull %%ebx, %%eax\n");
+		printf(".text; pushl %%eax\n");
+	} else
+	if (o == TOKEN_TYPE_AND) { /* Bitwise */
+		printf(".text; popl %%ebx\n");
+		printf(".text; popl %%eax\n");
+		printf(".text; andl %%ebx, %%eax\n");
+		printf(".text; pushl %%eax\n");
+	} else
+	if (o == TOKEN_TYPE_OR) {
+		printf(".text; popl %%ebx\n");
+		printf(".text; popl %%eax\n");
+		printf(".text; orl %%ebx, %%eax\n");
+		printf(".text; pushl %%eax\n");
+	} else
+	if (o == TOKEN_TYPE_SHL) {
+		printf(".text; popl %%ecx\n");
+		printf(".text; popl %%eax\n");
+		printf(".text; shll %%cl, %%eax\n");
+		printf(".text; pushl %%eax\n");
+	} else
+	if (o == TOKEN_TYPE_SHR) {
+		printf(".text; popl %%ecx\n");
+		printf(".text; popl %%eax\n");
+		printf(".text; shrl %%cl, %%eax\n");
 		printf(".text; pushl %%eax\n");
 	} else
 	if (o == TOKEN_TYPE_PEEK) {
@@ -361,21 +385,20 @@ void declare(void)
 		}
 	} else
 	if (o == TOKEN_TYPE_END) {
-		if (in_loop) {
-			printf(".text; popl %%ebx\n");
-			printf(".text; popl %%eax\n");
-			printf(".text; cmp %%eax, %%ebx\n");
-			if (op == '>') printf(".text; jg .while%d\n", ndx_cond);
-			if (op == '=') printf(".text; je .while%d\n", ndx_cond);
-			if (op == '<') printf(".text; jl .while%d\n", ndx_cond);
-			printf(".text; .end%d:\n", ndx_cond);
-			in_loop--;
-			ndx_cond--;
+		if (in_loop > in_cond) {
+			if (in_loop > 0) {
+				printf(".text; jmp .WHILE%d\n", nwdx_cond);
+				printf(".text; .WHILEEND%d:\n", nwdx_cond);
+				in_loop-=in_cond;
+				nwdx_cond--;
+			}
 		} else
-		if (in_cond) {
-			printf(".text; .end%d:\n", ndx_cond);
-			in_cond--;
-			ndx_cond--;
+		if ((in_cond > in_loop)) {
+			if (in_cond > 0) {
+				printf(".text; .IFEND%d:\n", nifdx_cond);
+				in_cond-=in_loop;
+				nifdx_cond--;
+			}
 		} else
 		if (infunc) {
 			infunc = 0;
