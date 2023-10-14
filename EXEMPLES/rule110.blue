@@ -1,0 +1,28 @@
+extern _printf
+extern _exit
+
+set U32_SIZE : 4 end
+
+function main begin
+	var i : U32_SIZE end
+	var j : U32_SIZE end
+	var board : U32_SIZE [ 30 ] end
+	board 28 U32_SIZE * + 1 !
+	i 0 ! while i @ less 28 do
+		j 0 ! while j @ less 30 do
+			if board j @ U32_SIZE * + @ equal 0 then " " _printf end
+			if board j @ U32_SIZE * + @ equal 1 then "*" _printf end
+			j j @ 1 + !
+		end
+		"\n" _printf
+		var pattern : U32_SIZE end
+		pattern board @ 1 shl board 1 U32_SIZE * + @ or !
+		j 1 ! while j @ less 29 do
+			pattern pattern @ 1 shl 7 and board j @ 1 + U32_SIZE * + @ or !
+			board j @ U32_SIZE * + 110 pattern @ shr 1 and !
+			j j @ 1 + !
+		end
+		i i @ 1 + !
+	end
+	0 _exit
+end
