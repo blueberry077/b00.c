@@ -123,6 +123,8 @@ int wdx_cond = 0;
 int nwdx_cond = 0;
 int ifdx_cond = 0;
 int nifdx_cond = 0;
+int nested[8] = {};
+int nidx = 0;
 
 int main(int argc, char ** argv)
 {
@@ -204,12 +206,16 @@ void declare(void)
 		in_cond+=in_loop;
 		ifdx_cond++;
 		nifdx_cond = ifdx_cond;
+		nested[nidx] = ifdx_cond;
+		nidx++;
 	} else
 	if (o == TOKEN_TYPE_WHILE) { /* While loop */
 		in_loop+=in_cond;
 		wdx_cond++;
 		printf(".text; .WHILE%d:\n", wdx_cond);
 		nwdx_cond = wdx_cond;
+		nested[nidx] = wdx_cond;
+		nidx++;
 	} else
 	if (o == TOKEN_TYPE_GREATER) {
 		op = '>';
@@ -362,6 +368,14 @@ void declare(void)
 			o = symbol(1);
 			if (o == TOKEN_TYPE_LBRACK) {
 				o = symbol(1);
+				if (o == TOKEN_TYPE_NAME) {
+					for (int i = 0; i < constl; ++i) {
+						if (!strcmp(symbuf, constt[i].symb)) {
+							intval = constt[i].val;
+							break;
+						}
+					}
+				} else
 				if (o != TOKEN_TYPE_INTEGER) {
 					printf("%d: Array Variable Definion Error\n", line);
 					exit(1);
@@ -387,15 +401,17 @@ void declare(void)
 	if (o == TOKEN_TYPE_END) {
 		if (in_loop > in_cond) {
 			if (in_loop > 0) {
-				printf(".text; jmp .WHILE%d\n", nwdx_cond);
-				printf(".text; .WHILEEND%d:\n", nwdx_cond);
+				nidx--;
+				printf(".text; jmp .WHILE%d\n", nested[nidx]);
+				printf(".text; .WHILEEND%d:\n", nested[nidx]);
 				in_loop-=in_cond;
 				nwdx_cond--;
 			}
 		} else
 		if ((in_cond > in_loop)) {
 			if (in_cond > 0) {
-				printf(".text; .IFEND%d:\n", nifdx_cond);
+				nidx--;
+				printf(".text; .IFEND%d:\n", nested[nidx]);
 				in_cond-=in_loop;
 				nifdx_cond--;
 			}
@@ -455,6 +471,14 @@ int symbol(int t)
 					printf(".text; movl $%s, %%edx\n", symbuf);
 					printf(".text; pushl %%edx\n");
 					break;
+				}
+			}
+			if (!t) {
+				for (int i = 0; i < constl; ++i) { /* check for constant */
+					if (!strcmp(symbuf, constt[i].symb)) {
+						printf(".text; pushl $%d\n", constt[i].val);
+						break;
+					}
 				}
 			}
 		}
