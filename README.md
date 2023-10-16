@@ -11,15 +11,12 @@ You must have, in order to compile:
 ```bash
 > gcc -Wall -Wextra -o SOURCE/b00.c b00
 ```
-run this command to compile the compile.  
-Or just run the make.bat script.
-
+run this command to compile the compile  
+or just run the make.bat script.
 ## Exemple
 ```bash
-> as EXEMPLES/hello.s -o EXEMPLES/hello.obj
-> ld -o EXEMPLES/hello.exe EXEMPLES/hello.obj  -L/mingw/lib -luser32 -lkernel32 -lmsvcrt
-> EXEMPLES/hello.exe
+> b00 EXEMPLES\rule110.blue EXEMPLES\rule110
+> EXEMEPLES\rule110.exe
 ```
-run this command to compile the hello exemple.  
-Or just run the make.bat script.
+run this command to compile the rule110 exemple.  
 # .........................
