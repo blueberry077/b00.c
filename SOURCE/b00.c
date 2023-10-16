@@ -82,6 +82,12 @@ int comm(void);
 void getstr(void);
 void declare(void);
 
+#define fsystem(buf, cmd, ...) sprintf(buf, cmd, __VA_ARGS__); \
+							   system(buf);
+
+#define error(msg, ...) { printf(msg, __VA_ARGS__); \
+		 				exit(1); }
+
 char * types[17] = {
 	".unkn",		// 0
 	".byte",		// 1
@@ -125,11 +131,12 @@ int ifdx_cond = 0;
 int nifdx_cond = 0;
 int nested[8] = {};
 int nidx = 0;
+FILE *outp;
 
 int main(int argc, char ** argv)
 {
 	if (argc < 3 || argc > 3) {
-		printf("Arg Count : %d\n", argc);
+		fprintf(outp, "Arg Count : %d\n", argc);
 		exit(1);
 	}
 	freopen(argv[1], "r", stdin);
@@ -164,23 +171,31 @@ int main(int argc, char ** argv)
 
 	char outpfile[100];
 	sprintf(outpfile, "%s.s", argv[2]);
-	freopen(outpfile, "w", stdout);
+	outp = fopen(outpfile, "w");
 	
-	printf(".globl _main\n");
-	printf("jmp _main\n");
+	fprintf(outp, ".globl _main\n");
+	fprintf(outp, "jmp _main\n");
 	
 	while (!eoff) {
 		declare();
 	}
 	
-	printf("// as %s.s -o %s.obj\n", argv[2], argv[2]);
-	printf("// ld -o %s.exe %s.obj  -L/mingw/lib -luser32 -lkernel32 -lmsvcrt\n", argv[2], argv[2]);
+	fclose(outp);
+	
+	char command[256] = {};
+	fsystem(command, "as %s.s -o %s.obj", argv[2], argv[2]);
+	fsystem(command, "ld -o %s.exe %s.obj  -L/mingw/lib -luser32 -lkernel32 -lmsvcrt -lm", argv[2], argv[2]);
+	fsystem(command, "del %s.obj del %s.s", argv[2], argv[2]);
+	
+	printf(":: as %s.s -o %s.obj\n", argv[2], argv[2]);
+	printf(":: ld -o %s.exe %s.obj  -L/mingw/lib -luser32 -lkernel32 -lmsvcrt -lm\n", argv[2], argv[2]);
+	printf(":: del %s.exe && del %s.obj\n", argv[2], argv[2]);
 	return 0;
 }
 
 void function(char * s)
 {
-	printf(".text;_%s:\n", s);
+	fprintf(outp, ".text;_%s:\n", s);
 }
 
 void declare(void)
@@ -193,12 +208,12 @@ void declare(void)
 		if (!infunc) {
 			infunc = 1;
 			if((o = symbol(1)) != TOKEN_TYPE_NAME) {
-				printf("%d: Function Definion Error\n", line);
+				error("%d: Function Definion Error\n", line);
 				exit(1);
 			}
 			function(symbuf);
 		} else {
-			printf("%d: Function Definion Error\n", line);
+			error("%d: Function Definion Error\n", line);
 			exit(1);
 		}
 	} else
@@ -212,7 +227,7 @@ void declare(void)
 	if (o == TOKEN_TYPE_WHILE) { /* While loop */
 		in_loop+=in_cond;
 		wdx_cond++;
-		printf(".text; .WHILE%d:\n", wdx_cond);
+		fprintf(outp, ".text; .WHILE%d:\n", wdx_cond);
 		nwdx_cond = wdx_cond;
 		nested[nidx] = wdx_cond;
 		nidx++;
@@ -228,108 +243,127 @@ void declare(void)
 	} else
 	if (o == TOKEN_TYPE_THEN) { /* If conditions */
 		if (ifdx_cond) {
-			printf(".text; popl %%ebx\n");
-			printf(".text; popl %%eax\n");
-			printf(".text; cmp %%eax, %%ebx\n");
-			if (op == '>') printf(".text; jg .IFTHEN%d\n", ifdx_cond);
-			if (op == '=') printf(".text; je .IFTHEN%d\n", ifdx_cond);
-			if (op == '<') printf(".text; jl .IFTHEN%d\n", ifdx_cond);
-			printf(".text; jmp .IFEND%d\n", ifdx_cond);
-			printf(".text; .IFTHEN%d:\n", ifdx_cond);
+			fprintf(outp, ".text; popl %%ebx\n");
+			fprintf(outp, ".text; popl %%eax\n");
+			fprintf(outp, ".text; cmp %%eax, %%ebx\n");
+			if (op == '>') fprintf(outp, ".text; jg .IFTHEN%d\n", ifdx_cond);
+			if (op == '=') fprintf(outp, ".text; je .IFTHEN%d\n", ifdx_cond);
+			if (op == '<') fprintf(outp, ".text; jl .IFTHEN%d\n", ifdx_cond);
+			fprintf(outp, ".text; jmp .IFEND%d\n", ifdx_cond);
+			fprintf(outp, ".text; .IFTHEN%d:\n", ifdx_cond);
 		} else {
-			printf("%d: Not Started If-Condition\n", line);
+			error("%d: Not Started If-Condition\n", line);
 			exit(1);
 		}
 	} else
 	if (o == TOKEN_TYPE_DO) { /* While loop */
-		printf(".text; popl %%ebx\n");
-		printf(".text; popl %%eax\n");
-		printf(".text; cmp %%ebx, %%eax\n");
-		if (op == '>') printf(".text; jl .WHILEEND%d\n", wdx_cond);
-		if (op == '=') printf(".text; jne .WHILEEND%d\n", wdx_cond);
-		if (op == '<') printf(".text; jg .WHILEEND%d\n", wdx_cond);
+		fprintf(outp, ".text; popl %%ebx\n");
+		fprintf(outp, ".text; popl %%eax\n");
+		fprintf(outp, ".text; cmp %%ebx, %%eax\n");
+		if (op == '>') fprintf(outp, ".text; jl .WHILEEND%d\n", wdx_cond);
+		if (op == '=') fprintf(outp, ".text; jne .WHILEEND%d\n", wdx_cond);
+		if (op == '<') fprintf(outp, ".text; jg .WHILEEND%d\n", wdx_cond);
 	} else
 	if (o == TOKEN_TYPE_PLUS) { /* Arithmetic */
-		printf(".text; popl %%ebx\n");
-		printf(".text; popl %%eax\n");
-		printf(".text; addl %%ebx, %%eax\n");
-		printf(".text; pushl %%eax\n");
+		fprintf(outp, ".text; popl %%ebx\n");
+		fprintf(outp, ".text; popl %%eax\n");
+		fprintf(outp, ".text; addl %%ebx, %%eax\n");
+		fprintf(outp, ".text; pushl %%eax\n");
 	} else
 	if (o == TOKEN_TYPE_MINUS) {
-		printf(".text; popl %%ebx\n");
-		printf(".text; popl %%eax\n");
-		printf(".text; subl %%ebx, %%eax\n");
-		printf(".text; pushl %%eax\n");
+		fprintf(outp, ".text; popl %%ebx\n");
+		fprintf(outp, ".text; popl %%eax\n");
+		fprintf(outp, ".text; subl %%ebx, %%eax\n");
+		fprintf(outp, ".text; pushl %%eax\n");
 	} else
 	if (o == TOKEN_TYPE_MULTIPLY) {
-		printf(".text; popl %%ebx\n");
-		printf(".text; popl %%eax\n");
-		printf(".text; imull %%ebx, %%eax\n");
-		printf(".text; pushl %%eax\n");
+		fprintf(outp, ".text; popl %%ebx\n");
+		fprintf(outp, ".text; popl %%eax\n");
+		fprintf(outp, ".text; imull %%ebx, %%eax\n");
+		fprintf(outp, ".text; pushl %%eax\n");
+	} else
+	if (o == TOKEN_TYPE_DIVIDE) {
+		fprintf(outp, ".text; xorl %%edx, %%edx\n");
+		fprintf(outp, ".text; popl %%ebx\n");
+		fprintf(outp, ".text; popl %%eax\n");
+		fprintf(outp, ".text; idivl %%ebx\n");
+		fprintf(outp, ".text; pushl %%eax\n");
+	} else
+	if (o == TOKEN_TYPE_MODULO) {
+		fprintf(outp, ".text; xorl %%edx, %%edx\n");
+		fprintf(outp, ".text; popl %%ebx\n");
+		fprintf(outp, ".text; popl %%eax\n");
+		fprintf(outp, ".text; idivl %%ebx\n");
+		fprintf(outp, ".text; pushl %%edx\n");
 	} else
 	if (o == TOKEN_TYPE_AND) { /* Bitwise */
-		printf(".text; popl %%ebx\n");
-		printf(".text; popl %%eax\n");
-		printf(".text; andl %%ebx, %%eax\n");
-		printf(".text; pushl %%eax\n");
+		fprintf(outp, ".text; popl %%ebx\n");
+		fprintf(outp, ".text; popl %%eax\n");
+		fprintf(outp, ".text; andl %%ebx, %%eax\n");
+		fprintf(outp, ".text; pushl %%eax\n");
+	} else
+	if (o == TOKEN_TYPE_NOT) {
+		fprintf(outp, ".text; popl %%eax\n");
+		fprintf(outp, ".text; notl %%eax\n");
+		fprintf(outp, ".text; pushl %%eax\n");
 	} else
 	if (o == TOKEN_TYPE_OR) {
-		printf(".text; popl %%ebx\n");
-		printf(".text; popl %%eax\n");
-		printf(".text; orl %%ebx, %%eax\n");
-		printf(".text; pushl %%eax\n");
+		fprintf(outp, ".text; popl %%ebx\n");
+		fprintf(outp, ".text; popl %%eax\n");
+		fprintf(outp, ".text; orl %%ebx, %%eax\n");
+		fprintf(outp, ".text; pushl %%eax\n");
 	} else
 	if (o == TOKEN_TYPE_SHL) {
-		printf(".text; popl %%ecx\n");
-		printf(".text; popl %%eax\n");
-		printf(".text; shll %%cl, %%eax\n");
-		printf(".text; pushl %%eax\n");
+		fprintf(outp, ".text; popl %%ecx\n");
+		fprintf(outp, ".text; popl %%eax\n");
+		fprintf(outp, ".text; shll %%cl, %%eax\n");
+		fprintf(outp, ".text; pushl %%eax\n");
 	} else
 	if (o == TOKEN_TYPE_SHR) {
-		printf(".text; popl %%ecx\n");
-		printf(".text; popl %%eax\n");
-		printf(".text; shrl %%cl, %%eax\n");
-		printf(".text; pushl %%eax\n");
+		fprintf(outp, ".text; popl %%ecx\n");
+		fprintf(outp, ".text; popl %%eax\n");
+		fprintf(outp, ".text; shrl %%cl, %%eax\n");
+		fprintf(outp, ".text; pushl %%eax\n");
 	} else
 	if (o == TOKEN_TYPE_PEEK) {
-		printf(".text; popl %%edx\n"); /* get the address */
-		printf(".text; pushl (%%edx)\n");
+		fprintf(outp, ".text; popl %%edx\n"); /* get the address */
+		fprintf(outp, ".text; pushl (%%edx)\n");
 	} else
 	if (o == TOKEN_TYPE_POKE) {
-		printf(".text; popl %%ebx\n"); /* get the value */
-		printf(".text; popl %%edx\n"); /* get the address */
-		printf(".text; mov %%ebx, (%%edx)\n");
+		fprintf(outp, ".text; popl %%ebx\n"); /* get the value */
+		fprintf(outp, ".text; popl %%edx\n"); /* get the address */
+		fprintf(outp, ".text; mov %%ebx, (%%edx)\n");
 	} else
 	if (o == TOKEN_TYPE_RETURN) {
-		printf(".text; popl %%eax\n");
+		fprintf(outp, ".text; popl %%eax\n");
 	} else
 	if (o == TOKEN_TYPE_EXTERN) { /* Extern function */
 		if((o = symbol(1)) == TOKEN_TYPE_NAME) {
-			printf(".extern %s\n", symbuf);
+			fprintf(outp, ".extern %s\n", symbuf);
 		} else {
-			printf("%d: Extern Function Definition Error\n", line);
+			error("%d: Extern Function Definition Error\n", line);
 			exit(1);
 		}
 	} else
 	if (o == TOKEN_TYPE_SET) { /* Constants */
 		if ((o = symbol(1)) != TOKEN_TYPE_NAME) {
-			printf("%d: Constant Definition Error\n", line);
+			error("%d: Constant Definition Error\n", line);
 			exit(1);
 		}
 		strcpy(constt[constl].symb, symbuf);
-		printf("%s = ", symbuf);
+		fprintf(outp, "%s = ", symbuf);
 		if ((o = symbol(1)) != TOKEN_TYPE_COLON) {
-			printf("%d: Constant Definition Error\n", line);
+			error("%d: Constant Definition Error\n", line);
 			exit(1);
 		}
 		if ((o = symbol(1)) != TOKEN_TYPE_INTEGER) {
-			printf("%d: Constant Definition Error\n", line);
+			error("%d: Constant Definition Error\n", line);
 			exit(1);
 		}
 		constt[constl].val = intval;
-		printf("%d\n", intval);
+		fprintf(outp, "%d\n", intval);
 		if ((o = symbol(1)) != TOKEN_TYPE_END) {
-			printf("%d: Constant Definition Error\n", line);
+			error("%d: Constant Definition Error\n", line);
 			exit(1);
 		}
 		constl++;
@@ -338,33 +372,33 @@ void declare(void)
 		if ((o = symbol(1)) == TOKEN_TYPE_NAME) {
 			for (int i = 0; i < varl; ++i) {
 				if (!strcmp(symbuf, vars[i])) {
-					printf("%d: Variable Redefinition\n", line);
+					error("%d: Variable Redefinition\n", line);
 					exit(1);
 				}
 			}
 			strcpy(vars[varl], symbuf);
-			printf(".data; %s:", symbuf);
+			fprintf(outp, ".data; %s:", symbuf);
 			if ((o = symbol(1)) != TOKEN_TYPE_COLON) {
-				printf("\n%d: Variable Definion Error\n", line);
+				error("\n%d: Variable Definion Error\n", line);
 				exit(1);
 			}
 			o = symbol(1);
 			if (o == TOKEN_TYPE_INTEGER) {
 				var_sizeof = intval;
-				printf("%s ", types[var_sizeof]);
+				fprintf(outp, "%s ", types[var_sizeof]);
 			} else
 			if (o == TOKEN_TYPE_NAME) {
 				for (int i = 0; i < constl; ++i) {
 					if (!strcmp(constt[i].symb, symbuf)) {
-						printf("%s ", types[constt[i].val]);
+						fprintf(outp, "%s ", types[constt[i].val]);
 						break;
 					}
 				}
 			} else {
-				printf("%d: Type should be an integer\n", line);
+				error("%d: Type should be an integer\n", line);
 				exit(1);
 			}
-			putc('0', stdout);
+			putc('0', outp);
 			o = symbol(1);
 			if (o == TOKEN_TYPE_LBRACK) {
 				o = symbol(1);
@@ -377,24 +411,24 @@ void declare(void)
 					}
 				} else
 				if (o != TOKEN_TYPE_INTEGER) {
-					printf("%d: Array Variable Definion Error\n", line);
+					error("%d: Array Variable Definion Error\n", line);
 					exit(1);
 				}
-				for (int i = 0; i < intval - 1; ++i) { printf(",0"); }
+				for (int i = 0; i < intval - 1; ++i) { fprintf(outp, ",0"); }
 				if ((o = symbol(1)) != TOKEN_TYPE_RBRACK) {
-					printf("%d: Array Variable Definion Error\n", line);
+					error("%d: Array Variable Definion Error\n", line);
 					exit(1);
 				}
 				o = symbol(1);
 			}
-			putc('\n', stdout);
+			putc('\n', outp);
 			if (o != TOKEN_TYPE_END) {
-				printf("%d: Variable Definion Error\n", line);
+				error("%d: Variable Definion Error\n", line);
 				exit(1);
 			}
 			varl++;
 		} else {
-			printf("%d: Variable Definion Error\n", line);
+			error("%d: Variable Definion Error\n", line);
 			exit(1);
 		}
 	} else
@@ -402,8 +436,8 @@ void declare(void)
 		if (in_loop > in_cond) {
 			if (in_loop > 0) {
 				nidx--;
-				printf(".text; jmp .WHILE%d\n", nested[nidx]);
-				printf(".text; .WHILEEND%d:\n", nested[nidx]);
+				fprintf(outp, ".text; jmp .WHILE%d\n", nested[nidx]);
+				fprintf(outp, ".text; .WHILEEND%d:\n", nested[nidx]);
 				in_loop-=in_cond;
 				nwdx_cond--;
 			}
@@ -411,16 +445,16 @@ void declare(void)
 		if ((in_cond > in_loop)) {
 			if (in_cond > 0) {
 				nidx--;
-				printf(".text; .IFEND%d:\n", nested[nidx]);
+				fprintf(outp, ".text; .IFEND%d:\n", nested[nidx]);
 				in_cond-=in_loop;
 				nifdx_cond--;
 			}
 		} else
 		if (infunc) {
 			infunc = 0;
-			printf(".text; ret\n");
+			fprintf(outp, ".text; ret\n");
 		} else {
-			printf("%d: Nothing to End\n", line);
+			error("%d: Nothing to End\n", line);
 			exit(1);
 		}
 	}
@@ -452,14 +486,14 @@ int symbol(int t)
 		sp = symbuf;
 		while (isalnum(c) || c == '_' || c == '@') {
 			if (sp - symbuf > namesiz) {
-				printf("%d: Symbol too big : '%s'\n", line, symbuf);
+				error("%d: Symbol too big : '%s'\n", line, symbuf);
 				exit(1);
 			}
 			*sp++ = c; c = getchar();
 		}
 		if (symbuf[0] == '_' && !t) {
-			printf(".text; call %s\n", symbuf);
-			printf(".text; pushl %%eax\n");
+			fprintf(outp, ".text; call %s\n", symbuf);
+			fprintf(outp, ".text; pushl %%eax\n");
 		} else {
 			for (int i = 0; i < keywrdl; ++i) { /* check for keywords */
 				if (!strcmp(symbuf, keywrds[i].symb)) {
@@ -468,15 +502,15 @@ int symbol(int t)
 			}
 			for (int i = 0; i < varl; ++i) { /* check for variable name */
 				if (!strcmp(symbuf, vars[i])) {
-					printf(".text; movl $%s, %%edx\n", symbuf);
-					printf(".text; pushl %%edx\n");
+					fprintf(outp, ".text; movl $%s, %%edx\n", symbuf);
+					fprintf(outp, ".text; pushl %%edx\n");
 					break;
 				}
 			}
 			if (!t) {
 				for (int i = 0; i < constl; ++i) { /* check for constant */
 					if (!strcmp(symbuf, constt[i].symb)) {
-						printf(".text; pushl $%d\n", constt[i].val);
+						fprintf(outp, ".text; pushl $%d\n", constt[i].val);
 						break;
 					}
 				}
@@ -492,7 +526,7 @@ int symbol(int t)
 			c = getchar();
 		}
 		if (!t)
-			printf(".text; pushl $%d\n", intval);
+			fprintf(outp, ".text; pushl $%d\n", intval);
 		return TOKEN_TYPE_INTEGER;
 	} else
 	if (c == '"') { /* check for string */
@@ -512,13 +546,16 @@ int symbol(int t)
 				c = getchar();
 			}
 			if (!t)
-				printf(".text; pushl $-%d\n", intval);
+				fprintf(outp, ".text; pushl $-%d\n", intval);
 			return TOKEN_TYPE_INTEGER;
 		}
-		return subseq('-', TOKEN_TYPE_MINUS, TOKEN_TYPE_DECREMENT);
+		return (c == '-') ? TOKEN_TYPE_DECREMENT : TOKEN_TYPE_MINUS;
 	} else
 	if (c == '*') { /* check for * */
 		return TOKEN_TYPE_MULTIPLY;
+	} else
+	if (c == '%') { /* check for % */
+		return TOKEN_TYPE_MODULO;
 	} else
 	if (c == '/') { /* check for / */
 		return TOKEN_TYPE_DIVIDE;
@@ -539,11 +576,15 @@ int symbol(int t)
 		return TOKEN_TYPE_RBRACK;
 	} else
 	if (c == '/') { /* check for comment */
-		if (subseq('*', 0, 1))
-			comm();
+		if (subseq('/', 0, 1)) {
+			c = getchar();
+			while (c != '\n') {
+				c = getchar();
+			}
+		}
 		return TOKEN_TYPE_DIVIDE;
 	} else { /* check invalid character */
-		printf("%d: Unknown Character : '%c'\n", line, c);
+		error("%d: Unknown Character : '%c'\n", line, c);
 		exit(1);
 	}
 	return TOKEN_TYPE_INVALID;
@@ -553,9 +594,10 @@ int comm(void)
 {
 	int c;
 loop:
-	while (c != '*') {
+	do {
 		c = getchar();
-	}
+	} while (c != '*'); 
+	
 	if (subseq('/', 0, 1)) {
 		return 0;
 	} else {
@@ -571,7 +613,7 @@ int ch(int a)
 		return (-1);
 	}
 	if (c == '\n' || c == 0) {
-		printf("%d: Non-terminated String : '%c'\n", line, c);
+		error("%d: Non-terminated String : '%c'\n", line, c);
 		exit(1);
 	}
 	if (c == '\\') {
@@ -581,7 +623,7 @@ int ch(int a)
 		if (c == 't') return '\t';
 		if (c == '0') return '\0';
 		else {
-			printf("%d: Unknown Escape Character : '%c'\n", line, c);
+			error("%d: Unknown Escape Character : '%c'\n", line, c);
 			exit(1);
 		}
 	}
@@ -598,11 +640,11 @@ int subseq(char c, int a, int b)
 void getstr(void)
 {
 	int c;
-	printf(".data;L%d:.byte ", sidx);
+	fprintf(outp, ".data;L%d:.byte ", sidx);
 	while ((c = ch('"')) >= 0) {
-		printf("0x%X,", c);
+		fprintf(outp, "0x%X,", c);
 	}
-	printf("0x0\n");
-	printf(".text; pushl $L%d\n", sidx);
+	fprintf(outp, "0x0\n");
+	fprintf(outp, ".text; pushl $L%d\n", sidx);
 	sidx++;
 }
