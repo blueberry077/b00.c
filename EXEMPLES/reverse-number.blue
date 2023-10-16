@@ -1,0 +1,19 @@
+extern _printf
+extern _scanf
+extern _exit
+
+var num : 4 end
+var rem : 4 end
+var rev : 4 end
+
+function main begin
+	"Enter an integer: " _printf
+	num "%d" _scanf
+	while num @ greater 1 do
+		rem num @ 10 % !
+		rev rev @ 10 * rem @ + !
+		num num @ 10 / ! 
+	end
+	rev @ "Reversed number = %d\n" _printf
+	0 _exit
+end

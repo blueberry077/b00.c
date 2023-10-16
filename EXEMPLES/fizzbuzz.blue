@@ -1,0 +1,16 @@
+extern _exit
+
+function main begin
+	var i : 4 end
+	var c : 4 end
+	"Enter the count: " _printf
+	c "%d" _scanf
+	i 1 ! while i @ less c @ do
+		i @ "%i " _printf
+		if i @ 3 % equal 0 then "Fizz" _printf end
+		if i @ 5 % equal 0 then	"Buzz" _printf end
+		"\n" _printf
+		i i @ 1 + !
+	end
+	0 _exit
+end
