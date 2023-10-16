@@ -1,0 +1,35 @@
+extern _printf
+extern _scanf
+extern _exit
+
+set u32 : 4 end
+set addr : 4 end
+set NULL : 0 end
+
+var list : addr end
+var pwd_len : u32 end
+
+function generate begin
+	var i : u32 end
+	var c : u32 end
+	list "1234567890qwertyuiopasdfghjklzxcvbnm!@#$%^&*()_-+=QWERTYUIOPASDFGHJKLZXCVBNM[]{};':<>,.?/|" !
+	"Generated Password: " _printf
+	
+	i 0 ! while i @ less pwd_len @ do
+		list @ _rand 91 % + @ "%c" _printf
+		i i @ 1 + !
+	end
+	"\n" _printf
+	0 _exit
+end
+
+function main begin
+	pwd_len 0 !
+	NULL _time _srand
+
+	"Enter Password Length: " _printf
+	pwd_len "%d" _scanf
+	_generate
+	
+	0 _exit
+end
